@@ -1,0 +1,126 @@
+---
+title: "Prediction Assignment"
+author: "Daniel J. Riesco"
+date: "24 February 2016"
+output: html_document
+---
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the way in which they did the exercise.
+## Loading R Packages 
+```{r}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(rpart)
+library(randomForest)
+```
+## Downloading data source
+```{r}
+## Getting the data from internet links and locate csv files in your working directory
+URL_train <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+URL_test<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+CSV_train <- "C:/R Programming/workspace/data/pml-training.csv"
+CSV_test <- "C:/R Programming/workspace/data/pml.csv"
+list.files("C:/R Programming/workspace/data")
+```
+
+## Reading the training and testing data
+After downloading the data from the data source, we can read the two csv files into two data frames.  
+```{r, cache = T}
+Raw_Train_Data<- read.csv("C:/R Programming/workspace/data/pml-training.csv")
+Raw_Test_Data<- read.csv("C:/R Programming/workspace/data/pml-testing.csv")
+```
+ The training dataset contains 19622 observations with 160 variables
+```{r, cache = T}
+dim(Raw_Train_Data)
+```
+The testing dataset contains 20 observations and 160 variables.
+```{r, cache = T}
+dim(Raw_Test_Data)
+```
+The testing dataset contains 20 observations and 160 variables.
+The "classe" variable in the training set is going to be our outcome to predict. 
+
+## Preprocessing and Cleaning the data
+After looking at the training data throgh "str()" we can see there are a lot of NA and undesirable variables. Ideally, we have to  get rid of near zero values  and missing values as well as some useless variables.
+```{r, cache = T}
+sum(complete.cases(Raw_Train_Data))
+```
+Removing NA missing values from the raw dataset (training and testing)
+```{r, cache = T}
+Raw_Train_Data <- Raw_Train_Data[, colSums(is.na(Raw_Train_Data)) == 0] 
+Raw_Test_Data <- Raw_Test_Data[, colSums(is.na(Raw_Test_Data)) == 0]
+classe <- Raw_Train_Data$classe
+```
+Removing undesirable and factor variables from no NA's training dataset
+```{r, cache = T}
+## Select non related variables through pattern matching. The function is applied to a data frame with no missing values.
+Train_Match_Remove <- grepl("^X|timestamp|window", names(Raw_Train_Data))
+## Subsetting non related variables to get rid of them 
+Raw_Train_Data <- Raw_Train_Data[, !Train_Match_Remove]
+## Eliminate factor variables applying is.numeric fuction to the previous dataframe
+Train_Clean <- Raw_Train_Data[, sapply(Raw_Train_Data, is.numeric)]
+```
+The clean training dataset has the following dimensions:
+```{r, cache = T}
+dim(Train_Clean)
+```
+Re-assign the outcome 
+```{r, cache = T}
+Train_Clean$classe <- classe
+```
+Removing undesirable and factor variables from the no NA's testing dataset
+```{r, cache = T}
+## Select non related variables through pattern matching. The function is applied to a data frame with no missing values.
+Test_Match_Remove<- grepl("^X|timestamp|window", names(Raw_Test_Data))
+## Subsetting non related variables to get rid of them 
+Raw_Test_Data <- Raw_Test_Data[, !Test_Match_Remove]
+## Eliminate factor variables applying is.numeric fuction to the previous dataframe
+Test_Clean <- Raw_Test_Data[, sapply(Raw_Test_Data, is.numeric)]
+```
+The clean testing dataset has the following dimensions:
+```{r, cache = T}
+dim(Test_Clean)
+```
+## Creating a partition of training dataSet
+The data is divided into an 80%/20% split for training/validating repectively following common standards
+```{r, cache = T}
+set.seed(24216) 
+inTrain <- createDataPartition(Train_Clean$classe, p=0.80, list=F)
+training<- Train_Clean [inTrain, ]
+testing <- Train_Clean [-inTrain, ]
+```
+## Fitting the model 
+We are going to fit a predictive model with Random Forest algorithm. Random Forest is a decision tree method that make boostrapping of the samples and variables at each split. It is also very accurate and robust catching correlated predictors & outliers amd perfect to solve the question of this assigment.
+```{r, cache = T}
+modFit <-randomForest(classe ~ ., data=training)
+modFit
+```
+## Cross Validation
+Random Forest algorithm has its own autovalidation process in the caret package but in order to make sure we are making our prediction properly, we are going to use the misclassification error with the validating test data to prove it.
+```{r, cache = T}
+missClass = function(values,prediction){sum(((prediction))!= values)/length(values)}
+values <- testing$classe
+predictions <- predict(modFit, testing)
+missClass(values, predictions)
+```
+The missclasification error is less than 0,2% what it means we are predicting with more than 99% accuraccy.
+```{r, cache = T}
+Predictors_importance <- varImp(modFit)
+Predictors_importance
+```
+```{r, cache = T}
+confusionM <- table(predictions, values)
+confusionMatrix(confusionM)
+```
+## Predicting the outcome for classe
+It is time now to check the perfomanse of our fit model and apply for the test datase in order to predict the outcome
+```{r, cache = T}
+result <- predict(modFit, Test_Clean[, -length(names(Test_Clean))])
+result
+```
+
+##Conclusion
+The choosen model was highly accurate and has correctly predicted 20/20 from the test set. The random forest approach to machine learning worked very nicely and useful for this kind of problem. The response of prediction is very remarkable
+
+
